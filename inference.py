@@ -1,3 +1,5 @@
+import json
+
 import pycolmap
 from models.SpaTrackV2.models.predictor import Predictor
 import yaml
@@ -30,11 +32,13 @@ def parse_args():
     parser.add_argument("--grid_size", type=int, default=10)
     parser.add_argument("--vo_points", type=int, default=756)
     parser.add_argument("--fps", type=int, default=1)
+    parser.add_argument("--cam_file", type=str, default=None)
+    parser.add_argument("--save_dir", type=str, default="results")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
-    out_dir = args.data_dir + "/results"
+    out_dir = args.data_dir + f"/{args.save_dir}"
     # fps
     fps = int(args.fps)
     mask_dir = args.data_dir + f"/{args.video_name}.png"
@@ -82,7 +86,56 @@ if __name__ == "__main__":
         unc_metric = depth_conf.squeeze().cpu().numpy() > 0.5
 
         data_npz_load = {}
-    
+    elif args.data_type == "RGB_RS":
+        vid_dir = os.path.join(args.data_dir, f"{args.video_name}.mp4")
+        video_reader = decord.VideoReader(vid_dir)
+        video_tensor = torch.from_numpy(video_reader.get_batch(range(len(video_reader))).asnumpy()).permute(0, 3, 1,
+                                                                                                            2)  # Convert to tensor and permute to (N, C, H, W)
+        video_tensor = video_tensor[::fps].float()
+        H, W = video_tensor.shape[-2:]
+        # process the image tensor
+        video_tensor = preprocess_image(video_tensor)[None]
+        nH, nW = video_tensor.shape[-2:]
+
+        Sy = float(nH) / H
+        Sx = float(nW) / W
+
+        # with torch.no_grad():
+        #     with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+        #         # Predict attributes including cameras, depth maps, and point maps.
+        #         predictions = vggt4track_model(video_tensor.cuda() / 255)
+        #         extrinsic, intrinsic = predictions["poses_pred"], predictions["intrs"]
+        #         depth_map, depth_conf = predictions["points_map"][..., 2], predictions["unc_metric"]
+
+        depth_buff = []
+        all_depth_files = glob.glob(f"{args.data_dir}/output/depth_*.npy")
+        all_depth_files = sorted(all_depth_files)
+        for fpath in all_depth_files:
+            dep = np.load(fpath) / 1000.
+            dep = cv2.resize(dep, (nW, nH), interpolation=cv2.INTER_NEAREST)
+            depth_buff.append(dep)
+
+        depth_tensor = np.array(depth_buff)[::fps].astype("float32")
+
+        cam_data = json.load(open(args.cam_file, "r"))
+        # extrs = np.eye(4)[None].repeat(len(depth_tensor), axis=0)
+        extrs = np.array(cam_data["cam_pose"])
+        extrs = np.linalg.inv(extrs)
+        extrs = extrs[None].repeat(len(depth_tensor), axis=0).astype("float32")
+        cam_K = np.array(cam_data["cam_K"])[:3, :3]
+        cam_K[0, :] *= Sx
+        cam_K[1, :] *= Sy
+        intrs = cam_K[None].repeat(len(depth_tensor), axis=0).astype("float32")
+
+        print("check shape: ", extrs.shape, intrs.shape, depth_tensor.shape, video_tensor.shape)
+
+        video_tensor = video_tensor.squeeze()
+        # NOTE: 20% of the depth is not reliable
+        # threshold = depth_conf.squeeze()[0].view(-1).quantile(0.6).item()
+        unc_metric = None
+
+        data_npz_load = {}
+
     if os.path.exists(mask_dir):
         mask_files = mask_dir
         mask = cv2.imread(mask_files)
