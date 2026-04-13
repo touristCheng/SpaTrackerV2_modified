@@ -22,6 +22,7 @@ deps
 __pycache__/
 /**/**/__pycache__
 /**/__pycache__
+.idea
 
 # ignore the visualizer
 viser

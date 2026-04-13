@@ -108,7 +108,7 @@ if __name__ == "__main__":
         #         depth_map, depth_conf = predictions["points_map"][..., 2], predictions["unc_metric"]
 
         depth_buff = []
-        all_depth_files = glob.glob(f"{args.data_dir}/output/depth_*.npy")
+        all_depth_files = glob.glob(f"{args.data_dir}/output/*.npy")
         all_depth_files = sorted(all_depth_files)
         for fpath in all_depth_files:
             dep = np.load(fpath) / 1000.
