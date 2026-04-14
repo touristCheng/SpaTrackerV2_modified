@@ -43,7 +43,9 @@ if __name__ == "__main__":
     # fps
     fps = int(args.fps)
     mask_dir = args.data_dir + f"/{args.video_name}.png"
-    
+
+    print("Depth scale: ", args.depth_scale)
+
     vggt4track_model = VGGT4Track.from_pretrained("Yuxihenry/SpatialTrackerV2_Front")
     vggt4track_model.eval()
     vggt4track_model = vggt4track_model.to("cuda")
