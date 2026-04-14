@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument("--video_name", type=str, default="snowboard")
     parser.add_argument("--grid_size", type=int, default=10)
     parser.add_argument("--vo_points", type=int, default=756)
+    parser.add_argument("--depth_scale", type=float, default=1000)
     parser.add_argument("--fps", type=int, default=1)
     parser.add_argument("--cam_file", type=str, default=None)
     parser.add_argument("--save_dir", type=str, default="results")
@@ -111,7 +112,7 @@ if __name__ == "__main__":
         all_depth_files = glob.glob(f"{args.data_dir}/output/*.npy")
         all_depth_files = sorted(all_depth_files)
         for fpath in all_depth_files:
-            dep = np.load(fpath) / 1000.
+            dep = np.load(fpath) / args.depth_scale
             dep = cv2.resize(dep, (nW, nH), interpolation=cv2.INTER_NEAREST)
             depth_buff.append(dep)
 
